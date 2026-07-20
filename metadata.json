@@ -1,0 +1,6 @@
+{
+  "name": "VEX AUTO HUB",
+  "description": "Marketplace nacional de serviços automotivos. Tudo para o seu carro. Em um só lugar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
