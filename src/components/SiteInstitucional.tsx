@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SERVICES_CATALOG } from '../mockData';
 import { Partner } from '../types';
+import { supabase } from '../lib/supabase';
 import { Sparkles, CheckCircle2, ChevronRight, Play, ArrowRight, ShieldCheck, DollarSign, Smartphone, Users, MapPin, Star, Building2, Phone } from 'lucide-react';
 
 interface SiteProps {
@@ -19,7 +20,9 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
     plan: 'Premium' as 'Basic' | 'Premium',
     selectedServices: [] as string[]
   });
-  const [formSubmitted, setFormSubmitted] = useState(false);
+ const [formSubmitted, setFormSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const primaryAccent = isRedTheme ? 'text-[#E53E3E]' : 'text-[#C5A059]';
   const primaryBg = isRedTheme ? 'bg-[#E53E3E] hover:bg-[#c22d2d]' : 'bg-[#C5A059] hover:bg-[#b08e4d]';
@@ -42,35 +45,66 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) {
       alert('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
 
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    const { data, error } = await supabase
+      .from('partners')
+      .insert({
+        name: formData.name,
+        logo: formData.name.substring(0, 2).toUpperCase(),
+        rating: 5.0,
+        reviews_count: 0,
+        services_offered: formData.selectedServices.length > 0 ? formData.selectedServices : ['troca_bateria'],
+        status: 'Pendente',
+        plan: formData.plan,
+        balance: 0.0,
+        city: formData.city,
+        phone: formData.phone,
+        verified: false,
+        lat: -23.5505 + (Math.random() - 0.5) * 0.1,
+        lng: -46.6333 + (Math.random() - 0.5) * 0.1,
+        monthly_fee_paid: formData.plan === 'Premium'
+      })
+      .select()
+      .single();
+
+    setIsSubmitting(false);
+
+    if (error || !data) {
+      console.error(error);
+      setSubmitError('Não foi possível enviar seu cadastro. Tente novamente em instantes.');
+      return;
+    }
+
     const newPartner: Partner = {
-      id: 'p_custom_' + Date.now(),
-      name: formData.name,
-      logo: formData.name.substring(0, 2).toUpperCase(),
-      rating: 5.0,
-      reviewsCount: 0,
-      servicesOffered: formData.selectedServices.length > 0 ? formData.selectedServices : ['troca_bateria'],
-      status: 'Pendente', // Pending admin approval to show how VEX works!
-      plan: formData.plan,
-      balance: 0.0,
-      city: formData.city,
-      phone: formData.phone,
-      verified: false,
-      lat: -23.5505 + (Math.random() - 0.5) * 0.1,
-      lng: -46.6333 + (Math.random() - 0.5) * 0.1,
-      monthlyFeePaid: formData.plan === 'Premium' // Premium is mock paid
+      id: data.id,
+      name: data.name,
+      logo: data.logo,
+      rating: data.rating,
+      reviewsCount: data.reviews_count,
+      servicesOffered: data.services_offered,
+      status: data.status,
+      plan: data.plan,
+      balance: data.balance,
+      city: data.city,
+      phone: data.phone,
+      verified: data.verified,
+      lat: data.lat,
+      lng: data.lng,
+      monthlyFeePaid: data.monthly_fee_paid
     };
 
     onRegisterPartner(newPartner);
     setFormSubmitted(true);
   };
-
   return (
     <div id="site-landing" className="min-h-screen text-white bg-[#0a0a0a] font-sans">
       {/* Hero Section */}
@@ -482,13 +516,18 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
                         );
                       })}
                     </div>
-                  </div>
+                 </div>
 
-                  <button
-                    type="submit"
-                    className={`w-full py-4 rounded-none font-bold text-black uppercase text-xs tracking-widest transition-all duration-150 shadow-lg ${primaryBg} flex items-center justify-center gap-2 cursor-pointer`}
-                  >
-                    Enviar Solicitação
+                  {submitError && (
+                    <p className="text-xs text-red-400 font-bold">{submitError}</p>
+                  )}
+
+
+                   <button
+                                                     type="submit"
+                                  disabled={isSubmitting}
+                                                    className={`w-full py-4 rounded-none font-bold text-black uppercase text-xs tracking-widest transition-all duration-150 shadow-lg ${primaryBg} flex items-center justify-center gap-2 cursor-pointer`}  >
+                    {isSubmitting ? 'Enviando...' : 'Enviar Solicitação'}
                     <CheckCircle2 className="w-5 h-5 text-black" />
                   </button>
                 </form>
