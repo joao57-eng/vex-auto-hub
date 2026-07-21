@@ -10,8 +10,7 @@ import {
   FinancialTransaction 
 } from './types';
 import SiteInstitucional from './components/SiteInstitucional';
-import AppCliente from './components/AppCliente';
-import AppParceiro from './components/AppParceiro';
+import AppUnificado from './components/AppUnificado';
 import PainelAdmin from './components/PainelAdmin';
 import ModelagemDados from './components/ModelagemDados';
 
@@ -29,7 +28,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // Navigation: 'site' | 'cliente' | 'parceiro' | 'admin' | 'db'
+  // Navigation: 'site' | 'app' | 'admin' | 'db'
   const [currentTab, setCurrentTab] = useState<string>('site');
   
   // Theme state: false = Preto + Dourado + Branco (Gold); true = Preto + Vermelho + Branco (Red)
@@ -146,21 +145,12 @@ export default function App() {
             </button>
             
             <button
-              onClick={() => setCurrentTab('cliente')}
+              onClick={() => setCurrentTab('app')}
               className={`px-3 py-2 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                currentTab === 'cliente' ? activeNavText : 'text-white/60 hover:text-white'
+                currentTab === 'app' ? activeNavText : 'text-white/60 hover:text-white'
               }`}
             >
-              📱 App Cliente
-            </button>
-            
-            <button
-              onClick={() => setCurrentTab('parceiro')}
-              className={`px-3 py-2 rounded-none text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                currentTab === 'parceiro' ? activeNavText : 'text-white/60 hover:text-white'
-              }`}
-            >
-              💼 Painel Parceiro
+              📱 App VEX (Cliente/Parceiro)
             </button>
             
             <button
@@ -216,44 +206,27 @@ export default function App() {
           />
         )}
 
-        {currentTab === 'cliente' && (
+        {currentTab === 'app' && (
           <div className="py-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-900/60 via-neutral-950 to-neutral-950">
             <div className="max-w-4xl mx-auto px-6 text-center mb-6">
-              <h3 className="text-xl font-black">Fluxo do Cliente (App Mobile)</h3>
+              <h3 className="text-xl font-black">App VEX (Cliente & Parceiro)</h3>
               <p className="text-xs text-gray-500 mt-1 max-w-lg mx-auto">
-                Experimente a jornada completa de socorro/manutenção expresso. Selecione um serviço e acompanhe o split financeiro sendo simulado em tempo real nas telas de pagamento.
+                Um único aplicativo. A pessoa escolhe se entra como Cliente ou como Parceiro, e cada um vê sua própria área.
               </p>
             </div>
-            
-            <AppCliente
-              isRedTheme={isRedTheme}
-              partners={partners}
-              activeRequest={activeRequest}
-              setActiveRequest={setActiveRequest}
-              onAddTransaction={handleAddTransaction}
-              onUpdatePartnerBalance={handleUpdatePartnerBalance}
-              onUpdatePartnerRating={handleUpdatePartnerRating}
-            />
-          </div>
-        )}
 
-        {currentTab === 'parceiro' && (
-          <div className="py-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-900/60 via-neutral-950 to-neutral-950">
-            <div className="max-w-4xl mx-auto px-6 text-center mb-6">
-              <h3 className="text-xl font-black">Fluxo do Parceiro / Prestador</h3>
-              <p className="text-xs text-gray-500 mt-1 max-w-lg mx-auto">
-                Simule a recepção de chamados regionais, envio de cotações personalizadas, controle de assinaturas recorrentes e histórico de faturamento líquido.
-              </p>
-            </div>
-            
-            <AppParceiro
+            <AppUnificado
               isRedTheme={isRedTheme}
               partners={partners}
               setPartners={setPartners}
               activeRequest={activeRequest}
               setActiveRequest={setActiveRequest}
               transactions={transactions}
-            />
+              onAddTransaction={handleAddTransaction}
+              onUpdatePartnerBalance={handleUpdatePartnerBalance}
+              onUpdatePartnerRating={handleUpdatePartnerRating}
+              onRegisterPartner={handleRegisterPartnerInSite}
+                        />
           </div>
         )}
 

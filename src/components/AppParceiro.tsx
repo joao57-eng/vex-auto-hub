@@ -13,6 +13,7 @@ interface AppParceiroProps {
   activeRequest: OrderRequest | null;
   setActiveRequest: (req: OrderRequest | null) => void;
   transactions: any[];
+  initialPartnerId?: string;
 }
 
 export default function AppParceiro({
@@ -21,10 +22,11 @@ export default function AppParceiro({
   setPartners,
   activeRequest,
   setActiveRequest,
-  transactions
+  transactions,
+  initialPartnerId
 }: AppParceiroProps) {
   // Act as specific partner
-  const [activePartnerId, setActivePartnerId] = useState<string>('p_1');
+  const [activePartnerId, setActivePartnerId] = useState<string>(initialPartnerId || 'p_1');
   
   // Proposal input fields
   const [proposedPrice, setProposedPrice] = useState<number>(180);
