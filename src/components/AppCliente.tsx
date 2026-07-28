@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SERVICES_CATALOG } from '../mockData';
 import { Partner, OrderRequest, BudgetProposal } from '../types';
+import { supabase } from '../lib/supabase';
 import { 
   Sparkles, MapPin, Search, Navigation, Compass, Shield, Star, Check, AlertCircle,
   Clock, CreditCard, CheckCircle2, StarHalf, MessageSquare, ChevronRight, RefreshCw, X
@@ -14,6 +15,8 @@ interface AppClienteProps {
   onAddTransaction: (tx: any) => void;
   onUpdatePartnerBalance: (partnerId: string, amount: number) => void;
   onUpdatePartnerRating: (partnerId: string, rating: number) => void;
+  clientName: string;
+  clientPhone: string;
 }
 
 export default function AppCliente({
@@ -23,7 +26,9 @@ export default function AppCliente({
   setActiveRequest,
   onAddTransaction,
   onUpdatePartnerBalance,
-  onUpdatePartnerRating
+  onUpdatePartnerRating,
+  clientName,
+  clientPhone
 }: AppClienteProps) {
   // Mobile states
   const [selectedCategory, setSelectedCategory] = useState<'Fase1' | 'Fase2'>('Fase1');
@@ -61,74 +66,221 @@ export default function AppCliente({
     setLocalStep(2);
   };
 
-  const handleConfirmLocation = () => {
-    // Generate mock budget proposals based on active partners who offer this service
-    const matchingPartners = partners.filter(p => p.status === 'Ativo' && p.servicesOffered.includes(chosenServiceId));
-    
-    // Fallback if no matching active partners
-    const partnersToUse = matchingPartners.length > 0 ? matchingPartners : partners.filter(p => p.status === 'Ativo');
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
+  const [matchedFixedPartner, setMatchedFixedPartner] = useState<{ partner: Partner; price: number; estimatedTime: string } | null>(null);
 
-    const generatedProposals: BudgetProposal[] = partnersToUse.map(p => {
-      // Base prices range calculation
-      const basePrice = chosenServiceId === 'guincho_24h' ? 180 : 
-                       chosenServiceId === 'troca_bateria' ? 420 : 
-                       chosenServiceId === 'troca_oleo' ? 190 : 
-                       chosenServiceId === 'estetica_automotiva' ? 450 : 250;
-      
-      const priceModifier = p.plan === 'Premium' ? -15 : 0; // Premium providers give slightly optimized bids
-      const randomVariance = Math.floor(Math.random() * 50) - 20;
-      const finalPrice = basePrice + priceModifier + randomVariance;
+  // Procura o melhor parceiro ativo com preço fixo definido para o serviço escolhido
+  const findFixedPricePartner = () => {
+    const candidates = partners.filter(p =>
+      p.status === 'Ativo' &&
+      p.servicesOffered.includes(chosenServiceId) &&
+      p.fixedPrices && p.fixedPrices[chosenServiceId]
+    );
+    if (candidates.length === 0) return null;
+    // Escolhe o parceiro mais bem avaliado (simula "mais próximo/disponível")
+    const best = candidates.reduce((a, b) => (b.rating > a.rating ? b : a));
+    return { partner: best, price: best.fixedPrices![chosenServiceId].price, estimatedTime: best.fixedPrices![chosenServiceId].estimatedTime };
+  };
 
-      return {
-        partnerId: p.id,
-        partnerName: p.name,
-        partnerRating: p.rating,
-        price: finalPrice,
-        estimatedTime: `${15 + Math.floor(Math.random() * 20)} min`,
-        notes: p.plan === 'Premium' 
-          ? 'Garantia estendida de 90 dias, profissional com selo VEX Ouro.' 
-          : 'Atendimento rápido e equipe qualificada.',
+  const handleProceedFromAddress = () => {
+    const match = findFixedPricePartner();
+    if (match) {
+      setMatchedFixedPartner(match);
+      setLocalStep(2.5);
+    } else {
+      handleConfirmLocation();
+    }
+  };
+
+  const handleConfirmFixedPriceOrder = async () => {
+    if (!matchedFixedPartner) return;
+    setIsCreatingRequest(true);
+
+    const paymentSplit = {
+      total: matchedFixedPartner.price,
+      commissionVex: parseFloat((matchedFixedPartner.price * 0.10).toFixed(2)),
+      partnerRepass: parseFloat((matchedFixedPartner.price * 0.90).toFixed(2))
+    };
+
+    const { data, error } = await supabase
+      .from('order_requests')
+      .insert({
+        client_name: clientName,
+        client_phone: clientPhone,
+        client_address: addressInput,
+        service_id: chosenServiceId,
+        status: 'PagamentoPendente',
+        active_step: 4,
+        selected_partner_id: matchedFixedPartner.partner.id,
+        payment_split: paymentSplit
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      setIsCreatingRequest(false);
+      console.error(error);
+      alert('Não foi possível criar sua solicitação. Tente novamente.');
+      return;
+    }
+
+    const proposal: BudgetProposal = {
+      partnerId: matchedFixedPartner.partner.id,
+      partnerName: matchedFixedPartner.partner.name,
+      partnerRating: matchedFixedPartner.partner.rating,
+      price: matchedFixedPartner.price,
+      estimatedTime: matchedFixedPartner.estimatedTime,
+      notes: 'Preço fixo do parceiro.',
+      status: 'Pendente'
+    };
+
+    await supabase
+      .from('budget_proposals')
+      .insert({
+        order_request_id: data.id,
+        partner_id: proposal.partnerId,
+        partner_name: proposal.partnerName,
+        partner_rating: proposal.partnerRating,
+        price: proposal.price,
+        estimated_time: proposal.estimatedTime,
+        notes: proposal.notes,
         status: 'Pendente'
-      };
-    });
+      });
+
+    setIsCreatingRequest(false);
 
     const newRequest: OrderRequest = {
-      id: 'REQ-' + Math.floor(1000 + Math.random() * 9000),
-      clientName: 'Wilson França',
-      clientPhone: '(11) 98765-4321',
-      clientAddress: addressInput,
-      serviceId: chosenServiceId,
-      status: 'OrçamentosRecebidos',
-      activeStep: 3,
-      proposals: generatedProposals,
-      createdAt: new Date().toLocaleDateString('pt-BR')
+      id: data.id,
+      clientName: data.client_name,
+      clientPhone: data.client_phone,
+      clientAddress: data.client_address,
+      serviceId: data.service_id,
+      status: data.status,
+      activeStep: data.active_step,
+      proposals: [proposal],
+      selectedPartnerId: matchedFixedPartner.partner.id,
+      paymentSplit,
+      createdAt: new Date(data.created_at).toLocaleDateString('pt-BR')
+    };
+
+    setActiveRequest(newRequest);
+    setSelectedProposal(proposal);
+    setLocalStep(4);
+  };
+
+  const handleConfirmLocation = async () => {
+    setIsCreatingRequest(true);
+
+    const { data, error } = await supabase
+      .from('order_requests')
+      .insert({
+        client_name: clientName,
+        client_phone: clientPhone,
+        client_address: addressInput,
+        service_id: chosenServiceId,
+        status: 'AguardandoOrçamentos',
+        active_step: 3
+      })
+      .select()
+      .single();
+
+    setIsCreatingRequest(false);
+
+    if (error || !data) {
+      console.error(error);
+      alert('Não foi possível criar sua solicitação. Tente novamente em instantes.');
+      return;
+    }
+
+    const newRequest: OrderRequest = {
+      id: data.id,
+      clientName: data.client_name,
+      clientPhone: data.client_phone,
+      clientAddress: data.client_address,
+      serviceId: data.service_id,
+      status: data.status,
+      activeStep: data.active_step,
+      proposals: [],
+      createdAt: new Date(data.created_at).toLocaleDateString('pt-BR')
     };
 
     setActiveRequest(newRequest);
     setLocalStep(3);
   };
 
-  const handleSelectProposal = (prop: BudgetProposal) => {
+  // Escuta em tempo real novos orçamentos enviados por parceiros para este pedido
+  useEffect(() => {
+    if (!activeRequest?.id || localStep !== 3) return;
+
+    const channel = supabase
+      .channel(`order-proposals-${activeRequest.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'budget_proposals', filter: `order_request_id=eq.${activeRequest.id}` },
+        (payload: any) => {
+          const row = payload.new;
+          if (!row) return;
+
+          const incomingProposal: BudgetProposal = {
+            partnerId: row.partner_id,
+            partnerName: row.partner_name,
+            partnerRating: row.partner_rating,
+            price: row.price,
+            estimatedTime: row.estimated_time,
+            notes: row.notes,
+            status: row.status
+          };
+
+          setActiveRequest(prev => {
+            if (!prev) return prev;
+            const alreadyHas = prev.proposals.some(p => p.partnerId === incomingProposal.partnerId);
+            const updatedProposals = alreadyHas
+              ? prev.proposals.map(p => p.partnerId === incomingProposal.partnerId ? incomingProposal : p)
+              : [...prev.proposals, incomingProposal];
+            return { ...prev, proposals: updatedProposals, status: 'OrçamentosRecebidos' };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeRequest?.id, localStep]);
+
+  const handleSelectProposal = async (prop: BudgetProposal) => {
     setSelectedProposal(prop);
     
     if (activeRequest) {
+      const paymentSplit = {
+        total: prop.price,
+        commissionVex: parseFloat((prop.price * 0.10).toFixed(2)), // 10% standard VEX commission
+        partnerRepass: parseFloat((prop.price * 0.90).toFixed(2))
+      };
+
       const updatedReq: OrderRequest = {
         ...activeRequest,
         selectedPartnerId: prop.partnerId,
         status: 'PagamentoPendente',
         activeStep: 4,
-        paymentSplit: {
-          total: prop.price,
-          commissionVex: parseFloat((prop.price * 0.10).toFixed(2)), // 10% standard VEX commission
-          partnerRepass: parseFloat((prop.price * 0.90).toFixed(2))
-        }
+        paymentSplit
       };
       setActiveRequest(updatedReq);
+
+      await supabase
+        .from('order_requests')
+        .update({
+          selected_partner_id: prop.partnerId,
+          status: 'PagamentoPendente',
+          active_step: 4,
+          payment_split: paymentSplit
+        })
+        .eq('id', activeRequest.id);
     }
     setLocalStep(4);
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (activeRequest) {
       const updatedReq: OrderRequest = {
         ...activeRequest,
@@ -138,11 +290,16 @@ export default function AppCliente({
       };
       setActiveRequest(updatedReq);
       setTrackerSubStep(1);
+
+      await supabase
+        .from('order_requests')
+        .update({ payment_method: paymentMethod, status: 'EmAndamento', active_step: 5 })
+        .eq('id', activeRequest.id);
     }
     setLocalStep(5);
   };
 
-  const advanceTracker = () => {
+  const advanceTracker = async () => {
     if (trackerSubStep < 4) {
       setTrackerSubStep(prev => prev + 1);
     } else {
@@ -153,12 +310,17 @@ export default function AppCliente({
           activeStep: 6
         };
         setActiveRequest(updatedReq);
+
+        await supabase
+          .from('order_requests')
+          .update({ status: 'Concluido', active_step: 6 })
+          .eq('id', activeRequest.id);
       }
       setLocalStep(6);
     }
   };
 
-  const handleSendRating = () => {
+  const handleSendRating = async () => {
     if (activeRequest && selectedProposal) {
       // 1. Update partner balance with repass amount
       const repassVal = activeRequest.paymentSplit?.partnerRepass || (selectedProposal.price * 0.90);
@@ -180,6 +342,12 @@ export default function AppCliente({
 
       // 3. Update partner average rating
       onUpdatePartnerRating(selectedProposal.partnerId, stars);
+
+      // 4. Persist rating and feedback on the order itself
+      await supabase
+        .from('order_requests')
+        .update({ status: 'Avaliado', rating: stars, feedback: feedbackText })
+        .eq('id', activeRequest.id);
 
       // Reset
       setActiveRequest(null);
@@ -379,12 +547,71 @@ export default function AppCliente({
               </div>
 
               <button
-                onClick={handleConfirmLocation}
-                className={`w-full py-3 rounded-none text-xs font-bold text-black uppercase tracking-widest ${primaryBg} transition-all mt-4 flex items-center justify-center gap-2 cursor-pointer`}
+                onClick={handleProceedFromAddress}
+                disabled={isCreatingRequest}
+                className={`w-full py-3 rounded-none text-xs font-bold text-black uppercase tracking-widest ${primaryBg} transition-all mt-4 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50`}
               >
-                Buscar Orçamentos Próximos
-                <Navigation className="w-3.5 h-3.5 text-black" />
+                {isCreatingRequest ? 'Enviando solicitação...' : 'Buscar Orçamentos Próximos'}
+                {!isCreatingRequest && <Navigation className="w-3.5 h-3.5 text-black" />}
               </button>
+            </div>
+          )}
+
+          {/* STEP 2.5: PREÇO FIXO ENCONTRADO — ESTILO 99/UBER */}
+          {localStep === 2.5 && matchedFixedPartner && (
+            <div className="p-4 flex-1 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div>
+                  <span className={`text-[9px] font-mono tracking-wider px-2 py-0.5 rounded ${primaryBg}/10 ${primaryAccent}`}>PREÇO FIXO DISPONÍVEL</span>
+                  <h3 className="text-sm font-extrabold text-white mt-2">Encontramos um parceiro na hora!</h3>
+                  <p className="text-[10px] text-gray-400">Sem espera por orçamentos — pague agora e confirme o serviço.</p>
+                </div>
+
+                <div className="bg-neutral-900 border border-white/10 rounded-none p-4 space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                    <div>
+                      <p className="text-xs font-bold text-gray-100 uppercase tracking-tight">{matchedFixedPartner.partner.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                        <span className="text-[10px] text-gray-400">{matchedFixedPartner.partner.rating.toFixed(1)}</span>
+                      </div>
+                    </div>
+                    {matchedFixedPartner.partner.verified && (
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[8px] uppercase tracking-wider text-white/30 font-bold">Valor Fixo</span>
+                      <p className="text-base font-black text-emerald-400">R$ {matchedFixedPartner.price.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[8px] uppercase tracking-wider text-white/30 font-bold">Chegada Estimada</span>
+                      <p className="text-sm font-bold text-gray-200">{matchedFixedPartner.estimatedTime}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[9px] text-white/30 text-center">Ao confirmar, você já garante o parceiro e vai direto para o pagamento.</p>
+              </div>
+
+              <div className="space-y-2 mt-4">
+                <button
+                  onClick={handleConfirmFixedPriceOrder}
+                  disabled={isCreatingRequest}
+                  className={`w-full py-3 rounded-none text-xs font-bold text-black uppercase tracking-widest ${primaryBg} transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50`}
+                >
+                  {isCreatingRequest ? 'Confirmando...' : 'Pagar Agora e Confirmar'}
+                </button>
+                <button
+                  onClick={() => { setMatchedFixedPartner(null); handleConfirmLocation(); }}
+                  disabled={isCreatingRequest}
+                  className="w-full py-2.5 text-[10px] text-white/40 hover:text-white underline cursor-pointer disabled:opacity-50"
+                >
+                  Prefiro esperar por outros orçamentos
+                </button>
+              </div>
             </div>
           )}
 
@@ -403,6 +630,13 @@ export default function AppCliente({
 
                 {/* Proposals List */}
                 <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+                  {activeRequest.proposals.length === 0 && (
+                    <div className="p-6 bg-neutral-900/40 border border-white/10 rounded-none text-center">
+                      <RefreshCw className="w-5 h-5 mx-auto text-white/30 mb-2 animate-spin" />
+                      <p className="text-[10px] text-white/40">Procurando parceiros disponíveis na sua região...</p>
+                      <p className="text-[9px] text-white/25 mt-1">Assim que um orçamento chegar, ele aparece aqui automaticamente.</p>
+                    </div>
+                  )}
                   {activeRequest.proposals.map((prop) => (
                     <div 
                       key={prop.partnerId}

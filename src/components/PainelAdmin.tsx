@@ -1,6 +1,7 @@
 import React from 'react';
 import { Partner, OrderRequest, FinancialTransaction } from '../types';
 import { SERVICES_CATALOG } from '../mockData';
+import { supabase } from '../lib/supabase';
 import { 
   Users, CheckCircle2, ShieldAlert, DollarSign, Award, AlertCircle, 
   Settings, RefreshCw, Layers, ShieldCheck, TrendingUp, Sparkles, Filter
@@ -37,32 +38,45 @@ export default function PainelAdmin({
   const activeBasicCount = partners.filter(p => p.plan === 'Basic' && p.status === 'Ativo').length;
   const subscriptionRevenue = (activePremiumCount * 149.90) + (activeBasicCount * 79.90);
 
-  // Administrative actions
-  const handleApprovePartner = (id: string) => {
+  // Administrative actions — atualizam o estado local (feedback imediato) e o Supabase (fonte de verdade)
+  const handleApprovePartner = async (id: string) => {
     setPartners(prev => prev.map(p => {
       if (p.id === id) {
         return { ...p, status: 'Ativo', verified: true, monthlyFeePaid: true };
       }
       return p;
     }));
+
+    await supabase
+      .from('partners')
+      .update({ status: 'Ativo', verified: true, monthly_fee_paid: true })
+      .eq('id', id);
   };
 
-  const handleToggleVerify = (id: string) => {
-    setPartners(prev => prev.map(p => {
-      if (p.id === id) {
-        return { ...p, verified: !p.verified };
-      }
-      return p;
-    }));
+  const handleToggleVerify = async (id: string) => {
+    const partner = partners.find(p => p.id === id);
+    if (!partner) return;
+    const newVerified = !partner.verified;
+
+    setPartners(prev => prev.map(p => p.id === id ? { ...p, verified: newVerified } : p));
+
+    await supabase
+      .from('partners')
+      .update({ verified: newVerified })
+      .eq('id', id);
   };
 
-  const handleSuspendPartner = (id: string) => {
-    setPartners(prev => prev.map(p => {
-      if (p.id === id) {
-        return { ...p, status: p.status === 'Suspenso' ? 'Ativo' : 'Suspenso' };
-      }
-      return p;
-    }));
+  const handleSuspendPartner = async (id: string) => {
+    const partner = partners.find(p => p.id === id);
+    if (!partner) return;
+    const newStatus = partner.status === 'Suspenso' ? 'Ativo' : 'Suspenso';
+
+    setPartners(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
+
+    await supabase
+      .from('partners')
+      .update({ status: newStatus })
+      .eq('id', id);
   };
 
   return (

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import Hero from "./components/Hero";
+import React, { useState, useEffect } from 'react';
 import { 
   SERVICES_CATALOG, 
   INITIAL_PARTNERS, 
@@ -9,6 +10,7 @@ import {
   OrderRequest, 
   FinancialTransaction 
 } from './types';
+import { supabase } from './lib/supabase';
 import SiteInstitucional from './components/SiteInstitucional';
 import AppUnificado from './components/AppUnificado';
 import PainelAdmin from './components/PainelAdmin';
@@ -27,6 +29,28 @@ import {
   Info
 } from 'lucide-react';
 
+// Converte uma linha vinda do Supabase (snake_case) para o formato Partner usado no app (camelCase)
+function mapPartnerRow(row: any): Partner {
+  return {
+    id: row.id,
+    name: row.name,
+    logo: row.logo,
+    rating: row.rating,
+    reviewsCount: row.reviews_count,
+    servicesOffered: row.services_offered,
+    status: row.status,
+    plan: row.plan,
+    balance: row.balance,
+    city: row.city,
+    phone: row.phone,
+    verified: row.verified,
+    lat: row.lat,
+    lng: row.lng,
+    monthlyFeePaid: row.monthly_fee_paid,
+    fixedPrices: row.fixed_prices || {}
+  };
+}
+
 export default function App() {
   // Navigation: 'site' | 'app' | 'admin' | 'db'
   const [currentTab, setCurrentTab] = useState<string>('site');
@@ -35,41 +59,78 @@ export default function App() {
   const [isRedTheme, setIsRedTheme] = useState<boolean>(false);
 
   // Shared database states
-  const [partners, setPartners] = useState<Partner[]>(INITIAL_PARTNERS);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [partnersLoaded, setPartnersLoaded] = useState<boolean>(false);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>(INITIAL_TRANSACTIONS);
   const [activeRequest, setActiveRequest] = useState<OrderRequest | null>(null);
 
+  // Busca os parceiros reais do Supabase ao carregar, e escuta mudanças em tempo real
+  // (assim, aprovar um parceiro no Admin em uma aba/dispositivo reflete em todas as outras)
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPartners = async () => {
+      const { data, error } = await supabase.from('partners').select('*');
+      if (error || !data || !isMounted) return;
+      setPartners(data.map(mapPartnerRow));
+      setPartnersLoaded(true);
+    };
+
+    fetchPartners();
+
+    const channel = supabase
+      .channel('partners-listen')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'partners' }, (payload: any) => {
+        if (payload.eventType === 'DELETE') {
+          setPartners(prev => prev.filter(p => p.id !== payload.old.id));
+          return;
+        }
+        const updated = mapPartnerRow(payload.new);
+        setPartners(prev => {
+          const exists = prev.some(p => p.id === updated.id);
+          return exists ? prev.map(p => p.id === updated.id ? updated : p) : [updated, ...prev];
+        });
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Helpers
   const handleRegisterPartnerInSite = (newPartner: Partner) => {
-    setPartners(prev => [newPartner, ...prev]);
+    setPartners(prev => {
+      const exists = prev.some(p => p.id === newPartner.id);
+      return exists ? prev : [newPartner, ...prev];
+    });
   };
 
   const handleAddTransaction = (newTx: FinancialTransaction) => {
     setTransactions(prev => [newTx, ...prev]);
   };
 
-  const handleUpdatePartnerBalance = (partnerId: string, amount: number) => {
-    setPartners(prev => prev.map(p => {
-      if (p.id === partnerId) {
-        return { ...p, balance: parseFloat((p.balance + amount).toFixed(2)) };
-      }
-      return p;
-    }));
+  const handleUpdatePartnerBalance = async (partnerId: string, amount: number) => {
+    const partner = partners.find(p => p.id === partnerId);
+    if (!partner) return;
+    const newBalance = parseFloat((partner.balance + amount).toFixed(2));
+
+    setPartners(prev => prev.map(p => p.id === partnerId ? { ...p, balance: newBalance } : p));
+
+    await supabase.from('partners').update({ balance: newBalance }).eq('id', partnerId);
   };
 
-  const handleUpdatePartnerRating = (partnerId: string, newRating: number) => {
-    setPartners(prev => prev.map(p => {
-      if (p.id === partnerId) {
-        const totalRatingPoints = (p.rating * p.reviewsCount) + newRating;
-        const newCount = p.reviewsCount + 1;
-        return {
-          ...p,
-          reviewsCount: newCount,
-          rating: parseFloat((totalRatingPoints / newCount).toFixed(2))
-        };
-      }
-      return p;
-    }));
+  const handleUpdatePartnerRating = async (partnerId: string, newRating: number) => {
+    const partner = partners.find(p => p.id === partnerId);
+    if (!partner) return;
+    const totalRatingPoints = (partner.rating * partner.reviewsCount) + newRating;
+    const newCount = partner.reviewsCount + 1;
+    const newAvg = parseFloat((totalRatingPoints / newCount).toFixed(2));
+
+    setPartners(prev => prev.map(p => p.id === partnerId ? { ...p, reviewsCount: newCount, rating: newAvg } : p));
+
+    await supabase.from('partners').update({ rating: newAvg, reviews_count: newCount }).eq('id', partnerId);
   };
 
   // Color theme helpers
@@ -178,7 +239,8 @@ export default function App() {
 
       {/* Main Sandbox Workspace area */}
       <main className="flex-1">
-        
+        <Hero />
+
         {/* Dynamic Context Toast Box informing user about the simulation integration */}
         <div className="bg-[#0d0d0d] border-b border-white/10 py-2.5 px-6">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/40">
@@ -215,18 +277,22 @@ export default function App() {
               </p>
             </div>
 
-            <AppUnificado
-              isRedTheme={isRedTheme}
-              partners={partners}
-              setPartners={setPartners}
-              activeRequest={activeRequest}
-              setActiveRequest={setActiveRequest}
-              transactions={transactions}
-              onAddTransaction={handleAddTransaction}
-              onUpdatePartnerBalance={handleUpdatePartnerBalance}
-              onUpdatePartnerRating={handleUpdatePartnerRating}
-              onRegisterPartner={handleRegisterPartnerInSite}
-                        />
+            {partnersLoaded ? (
+              <AppUnificado
+                isRedTheme={isRedTheme}
+                partners={partners}
+                setPartners={setPartners}
+                activeRequest={activeRequest}
+                setActiveRequest={setActiveRequest}
+                transactions={transactions}
+                onAddTransaction={handleAddTransaction}
+                onUpdatePartnerBalance={handleUpdatePartnerBalance}
+                onUpdatePartnerRating={handleUpdatePartnerRating}
+                onRegisterPartner={handleRegisterPartnerInSite}
+              />
+            ) : (
+              <div className="text-center text-xs text-white/40 py-10">Carregando parceiros...</div>
+            )}
           </div>
         )}
 

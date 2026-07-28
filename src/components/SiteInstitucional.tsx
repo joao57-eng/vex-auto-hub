@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SERVICES_CATALOG } from '../mockData';
 import { Partner } from '../types';
 import { supabase } from '../lib/supabase';
+import Scene3D from './three/Scene3D';
+import { motion } from 'framer-motion';
+import { animate } from 'animejs';
+import { gsap } from 'gsap';
 import { Sparkles, CheckCircle2, ChevronRight, Play, ArrowRight, ShieldCheck, DollarSign, Smartphone, Users, MapPin, Star, Building2, Phone } from 'lucide-react';
 
 interface SiteProps {
@@ -12,6 +16,7 @@ interface SiteProps {
 }
 
 export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNavigateTo, partnersCount }: SiteProps) {
+  const heroRef = useRef<HTMLElement>(null);
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -32,6 +37,24 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
 
   const phase1Services = SERVICES_CATALOG.filter(s => s.phase === 1);
   const phase2Services = SERVICES_CATALOG.filter(s => s.phase === 2);
+
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+
+    const context = gsap.context(() => {
+      gsap.fromTo('[data-hero-stat]', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.55, stagger: 0.11, delay: 0.55, ease: 'power3.out' });
+      gsap.to('[data-hero-glow]', { scale: 1.18, opacity: 0.7, duration: 2.8, repeat: -1, yoyo: true, ease: 'sine.inOut' });
+    }, hero);
+
+    const orbit = hero.querySelector('.hero-orbit');
+    const orbitAnimation = orbit ? animate(orbit, { rotate: 360, duration: 16000, loop: true, ease: 'linear' }) : null;
+
+    return () => {
+      context.revert();
+      orbitAnimation?.cancel();
+    };
+  }, [isRedTheme]);
 
   const handleServiceToggle = (id: string) => {
     setFormData(prev => {
@@ -108,14 +131,21 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
   return (
     <div id="site-landing" className="min-h-screen text-white bg-[#0a0a0a] font-sans">
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-20 border-b border-white/10">
+      <section ref={heroRef} className="relative overflow-hidden pt-16 pb-24 border-b border-white/10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900/30 via-[#0a0a0a] to-[#0a0a0a]" />
+        <div data-hero-glow className={`absolute -left-24 top-16 h-72 w-72 rounded-full ${isRedTheme ? 'bg-[#E53E3E]/10' : 'bg-[#C5A059]/10'} blur-[120px]`} />
+        <div className={`hero-orbit absolute -right-28 top-12 h-72 w-72 rounded-full border ${primaryBorder} opacity-50`} />
         <div className="relative max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
-          <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-            <div className={`mb-4 px-3 py-1 border ${primaryBorder} inline-block w-fit ${primaryAccent} text-[10px] font-bold tracking-[0.2em] uppercase`}>
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+            className="lg:col-span-7 space-y-6 text-center lg:text-left"
+          >
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.16, duration: 0.45 }} className={`mb-4 px-3 py-1 border ${primaryBorder} inline-block w-fit ${primaryAccent} text-[10px] font-bold tracking-[0.2em] uppercase`}>
               Startup Brasileira de Tecnologia
-            </div>
+            </motion.div>
             
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[0.9] tracking-tighter mb-6 uppercase text-white">
               Tudo para o seu carro. <br />
@@ -126,7 +156,7 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
               Conectamos motoristas aos melhores profissionais automotivos. De estética a emergências 24h, gerenciamos todo o processo com segurança e transparência.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.5 }} className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
               <button
                 onClick={() => onNavigateTo('cliente')}
                 className={`w-full sm:w-auto px-8 py-4 rounded-none font-bold ${primaryBg} text-black uppercase text-xs tracking-widest transition-all duration-150 shadow-lg ${glowShadow} flex items-center justify-center gap-2 cursor-pointer`}
@@ -142,29 +172,30 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
                 Seja um Parceiro Credenciado
                 <ArrowRight className="w-4 h-4" />
               </a>
-            </div>
+            </motion.div>
 
             {/* Quick Metrics */}
             <div className="grid grid-cols-3 gap-6 pt-8 max-w-lg mx-auto lg:mx-0 border-t border-white/10">
-              <div>
+              <div data-hero-stat>
                 <p className={`text-2xl font-bold ${primaryAccent}`}>4</p>
                 <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold mt-1">Serviços Lançamento</p>
               </div>
-              <div className="border-l border-white/10 pl-6">
+              <div data-hero-stat className="border-l border-white/10 pl-6">
                 <p className="text-2xl font-bold text-white">{partnersCount}</p>
                 <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold mt-1">Parceiros Ativos</p>
               </div>
-              <div className="border-l border-white/10 pl-6">
+              <div data-hero-stat className="border-l border-white/10 pl-6">
                 <p className="text-2xl font-bold text-white">100%</p>
                 <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold mt-1">Split Integrado</p>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Right side - App Mockup Graphic */}
-          <div className="lg:col-span-5 flex justify-center relative">
+          <motion.div initial={{ opacity: 0, scale: 0.9, x: 28 }} animate={{ opacity: 1, scale: 1, x: 0 }} transition={{ delay: 0.18, duration: 0.8, ease: 'easeOut' }} className="lg:col-span-5 flex justify-center relative min-h-[600px]">
             <div className={`absolute -inset-4 rounded-full bg-gradient-to-tr ${isRedTheme ? 'from-[#E53E3E]/10' : 'from-[#C5A059]/10'} to-transparent filter blur-2xl opacity-60`} />
-            <div className="relative w-[300px] h-[600px] bg-[#141414] border-[6px] border-[#222] rounded-[48px] shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/10">
+            <div className="absolute inset-0 scale-125 opacity-90 pointer-events-none"><Scene3D isRedTheme={isRedTheme} /></div>
+            <div className="relative w-[300px] h-[600px] bg-[#141414]/95 border-[6px] border-[#222] rounded-[48px] shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/10 transition-transform duration-500 hover:-translate-y-2">
               {/* Phone ear-speaker */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 h-6 w-32 bg-[#222] rounded-b-2xl z-20 flex justify-center items-center">
                 <div className="w-12 h-1 bg-black rounded-full" />
@@ -219,7 +250,7 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
 
         </div>
       </section>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VEX Auto Hub</string>
+    <string name="title_activity_main">VEX Auto Hub</string>
+    <string name="package_name">com.vexautohub.app</string>
+    <string name="custom_url_scheme">com.vexautohub.app</string>
+</resources>
