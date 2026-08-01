@@ -46,6 +46,86 @@ export default function AppCliente({
   const [stars, setStars] = useState<number>(5);
   const [feedbackText, setFeedbackText] = useState('');
 
+  const [isRehydrating, setIsRehydrating] = useState(true);
+
+  // Mapeia o status salvo no banco para a tela (localStep) correta
+  const statusToStep: Record<string, number> = {
+    'AguardandoOrçamentos': 3,
+    'OrçamentosRecebidos': 3,
+    'PagamentoPendente': 4,
+    'EmAndamento': 5,
+    'Concluido': 6
+  };
+
+  // Ao carregar o componente (inclusive após um F5), tenta recuperar um pedido em andamento
+  useEffect(() => {
+    const rehydrate = async () => {
+      const savedOrderId = localStorage.getItem('vex_active_order_id');
+
+      if (!savedOrderId || activeRequest) {
+        setIsRehydrating(false);
+        return;
+      }
+
+      const { data: order, error } = await supabase
+        .from('order_requests')
+        .select('*')
+        .eq('id', savedOrderId)
+        .single();
+
+      // Pedido não existe mais, ou já foi avaliado/finalizado — limpa e começa do zero
+      if (error || !order || order.status === 'Avaliado') {
+        localStorage.removeItem('vex_active_order_id');
+        setIsRehydrating(false);
+        return;
+      }
+
+      const { data: proposalsData } = await supabase
+        .from('budget_proposals')
+        .select('*')
+        .eq('order_request_id', savedOrderId);
+
+      const proposals: BudgetProposal[] = (proposalsData || []).map((row: any) => ({
+        partnerId: row.partner_id,
+        partnerName: row.partner_name,
+        partnerRating: row.partner_rating,
+        price: row.price,
+        estimatedTime: row.estimated_time,
+        notes: row.notes,
+        status: row.status
+      }));
+
+      const restoredRequest: OrderRequest = {
+        id: order.id,
+        clientName: order.client_name,
+        clientPhone: order.client_phone,
+        clientAddress: order.client_address,
+        serviceId: order.service_id,
+        status: order.status,
+        activeStep: order.active_step,
+        proposals,
+        selectedPartnerId: order.selected_partner_id,
+        paymentSplit: order.payment_split,
+        createdAt: new Date(order.created_at).toLocaleDateString('pt-BR')
+      };
+
+      setActiveRequest(restoredRequest);
+      setChosenServiceId(order.service_id);
+      setAddressInput(order.client_address);
+
+      if (order.selected_partner_id) {
+        const matchedProposal = proposals.find(p => p.partnerId === order.selected_partner_id);
+        if (matchedProposal) setSelectedProposal(matchedProposal);
+      }
+
+      setLocalStep(statusToStep[order.status] || 1);
+      setIsRehydrating(false);
+    };
+
+    rehydrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const primaryAccent = isRedTheme ? 'text-[#E53E3E]' : 'text-[#C5A059]';
   const primaryBg = isRedTheme ? 'bg-[#E53E3E] hover:bg-[#c22d2d]' : 'bg-[#C5A059] hover:bg-[#b08e4d]';
   const primaryBorder = isRedTheme ? 'border-[#E53E3E]/30' : 'border-[#C5A059]/30';
@@ -163,6 +243,7 @@ export default function AppCliente({
       createdAt: new Date(data.created_at).toLocaleDateString('pt-BR')
     };
 
+    localStorage.setItem('vex_active_order_id', data.id);
     setActiveRequest(newRequest);
     setSelectedProposal(proposal);
     setLocalStep(4);
@@ -204,6 +285,7 @@ export default function AppCliente({
       createdAt: new Date(data.created_at).toLocaleDateString('pt-BR')
     };
 
+    localStorage.setItem('vex_active_order_id', data.id);
     setActiveRequest(newRequest);
     setLocalStep(3);
   };
@@ -350,6 +432,7 @@ export default function AppCliente({
         .eq('id', activeRequest.id);
 
       // Reset
+      localStorage.removeItem('vex_active_order_id');
       setActiveRequest(null);
       setLocalStep(1);
       setChosenServiceId('');
@@ -360,11 +443,22 @@ export default function AppCliente({
   };
 
   const handleCancelRequest = () => {
+    localStorage.removeItem('vex_active_order_id');
     setActiveRequest(null);
     setLocalStep(1);
     setChosenServiceId('');
     setSelectedProposal(null);
   };
+
+  if (isRehydrating) {
+    return (
+      <div className="flex flex-col items-center py-6">
+        <div className="relative w-[340px] h-[680px] bg-neutral-900 rounded-[50px] border-[12px] border-neutral-800 shadow-2xl overflow-hidden flex items-center justify-center ring-4 ring-neutral-950">
+          <p className="text-xs text-white/40">Verificando pedidos em andamento...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center py-6">
