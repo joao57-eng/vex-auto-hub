@@ -452,8 +452,8 @@ export default function AppCliente({
 
   if (isRehydrating) {
     return (
-      <div className="flex flex-col items-center py-6">
-        <div className="relative w-[340px] h-[680px] bg-neutral-900 rounded-[50px] border-[12px] border-neutral-800 shadow-2xl overflow-hidden flex items-center justify-center ring-4 ring-neutral-950">
+      <div className="flex flex-col items-center py-6 vex-phone-outer">
+        <div className="relative w-[340px] h-[680px] bg-neutral-900 rounded-[50px] border-[12px] border-neutral-800 shadow-2xl overflow-hidden flex items-center justify-center ring-4 ring-neutral-950 vex-phone-chassis">
           <p className="text-xs text-white/40">Verificando pedidos em andamento...</p>
         </div>
       </div>
@@ -461,12 +461,12 @@ export default function AppCliente({
   }
 
   return (
-    <div className="flex flex-col items-center py-6">
+    <div className="flex flex-col items-center py-6 vex-phone-outer">
       {/* Smartphone Chassis Frame */}
-      <div className="relative w-[340px] h-[680px] bg-neutral-900 rounded-[50px] border-[12px] border-neutral-800 shadow-2xl overflow-hidden flex flex-col ring-4 ring-neutral-950">
+      <div className="relative w-[340px] h-[680px] bg-neutral-900 rounded-[50px] border-[12px] border-neutral-800 shadow-2xl overflow-hidden flex flex-col ring-4 ring-neutral-950 vex-phone-chassis">
         
         {/* Dynamic Notch / Ear Speaker */}
-        <div className="absolute top-0 inset-x-0 h-6 bg-neutral-800 rounded-b-2xl flex justify-center items-center z-30">
+        <div className="absolute top-0 inset-x-0 h-6 bg-neutral-800 rounded-b-2xl flex justify-center items-center z-30 vex-phone-decor">
           <div className="w-16 h-4 bg-black rounded-full flex items-center justify-between px-3">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
             <div className="w-6 h-1 bg-neutral-800 rounded-full" />
@@ -475,7 +475,7 @@ export default function AppCliente({
         </div>
 
         {/* Status Bar */}
-        <div className="bg-neutral-950 text-[10px] text-gray-500 px-6 pt-7 pb-1.5 flex justify-between items-center z-20 font-mono">
+        <div className="bg-neutral-950 text-[10px] text-gray-500 px-6 pt-7 pb-1.5 flex justify-between items-center z-20 font-mono vex-phone-decor">
           <span>14:25</span>
           <div className="flex items-center gap-1.5">
             <Compass className="w-3 h-3 text-gray-500 animate-spin" />
@@ -1024,7 +1024,7 @@ export default function AppCliente({
         </div>
 
         {/* Home indicator bar (iPhone simulator style) */}
-        <div className="bg-neutral-950 pb-2.5 pt-1.5 flex justify-center items-center shrink-0">
+        <div className="bg-neutral-950 pb-2.5 pt-1.5 flex justify-center items-center shrink-0 vex-phone-decor">
           <div className="w-24 h-1 bg-neutral-700 rounded-full" />
         </div>
       </div>

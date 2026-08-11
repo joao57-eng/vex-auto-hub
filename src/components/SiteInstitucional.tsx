@@ -4,7 +4,7 @@ import { Partner } from '../types';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
-import { CheckCircle2, ArrowRight, ShieldCheck, DollarSign, Smartphone, Users, MapPin, Star, Building2, Phone } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ShieldCheck, DollarSign, Smartphone, Users, MapPin, Star, Building2, Phone, Mail, Lock } from 'lucide-react';
 
 interface SiteProps {
   isRedTheme: boolean;
@@ -21,7 +21,9 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
     phone: '',
     city: 'São Paulo - SP',
     plan: 'Premium' as 'Basic' | 'Premium',
-    selectedServices: [] as string[]
+    selectedServices: [] as string[],
+    email: '',
+    password: ''
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,10 +63,30 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
       alert('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
+    if (!formData.email || !formData.password) {
+      setSubmitError('Preencha email e senha para criar seu login de acesso.');
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmitError(null);
 
+    // 1. Cria a conta de login (email/senha) do parceiro
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        data: { name: formData.name, phone: formData.phone, role: 'parceiro' }
+      }
+    });
+
+    if (authError || !authData.user) {
+      setIsSubmitting(false);
+      setSubmitError(authError?.message || 'Não foi possível criar sua conta de acesso.');
+      return;
+    }
+
+    // 2. Cria o registro do parceiro, já vinculado a essa conta (user_id)
     const { data, error } = await supabase
       .from('partners')
       .insert({
@@ -81,7 +103,8 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
         verified: false,
         lat: -23.5505 + (Math.random() - 0.5) * 0.1,
         lng: -46.6333 + (Math.random() - 0.5) * 0.1,
-        monthly_fee_paid: formData.plan === 'Premium'
+        monthly_fee_paid: formData.plan === 'Premium',
+        user_id: authData.user.id
       })
       .select()
       .single();
@@ -90,7 +113,7 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
 
     if (error || !data) {
       console.error(error);
-      setSubmitError('Não foi possível enviar seu cadastro. Tente novamente em instantes.');
+      setSubmitError('Sua conta foi criada, mas não foi possível salvar os dados da empresa. Tente entrar novamente em instantes ou fale com o suporte.');
       return;
     }
 
@@ -109,7 +132,8 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
       verified: data.verified,
       lat: data.lat,
       lng: data.lng,
-      monthlyFeePaid: data.monthly_fee_paid
+      monthlyFeePaid: data.monthly_fee_paid,
+      userId: data.user_id
     };
 
     onRegisterPartner(newPartner);
@@ -347,23 +371,17 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
                   </p>
                   <div className="p-4 bg-black/30 border border-white/[0.06] text-left text-xs text-white/40 max-w-md mx-auto space-y-1.5 vex-body leading-relaxed">
                     <p>Status inicial: <span className="text-amber-400 font-semibold">PENDENTE</span></p>
-                    <p>Próximo passo: acesse o <strong className="text-white">VEX Admin</strong> para aprovar este prestador.</p>
+                    <p>Nossa equipe vai analisar seu cadastro em breve. Você receberá acesso assim que for aprovado.</p>
                   </div>
-                  <div className="pt-3 flex flex-col sm:flex-row gap-3 justify-center">
+                  <div className="pt-3 flex justify-center">
                     <button
                       onClick={() => {
                         setFormSubmitted(false);
-                        setFormData({ name: '', phone: '', city: 'São Paulo - SP', plan: 'Premium', selectedServices: [] });
+                        setFormData({ name: '', phone: '', city: 'São Paulo - SP', plan: 'Premium', selectedServices: [], email: '', password: '' });
                       }}
                       className="vex-body px-6 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/10 text-xs font-semibold transition-colors"
                     >
                       Cadastrar Outro
-                    </button>
-                    <button
-                      onClick={() => onNavigateTo('admin')}
-                      className={`vex-body px-6 py-2.5 text-xs font-semibold text-black ${primaryBg} transition-all cursor-pointer`}
-                    >
-                      Ir para VEX Admin
                     </button>
                   </div>
                 </div>
@@ -399,6 +417,37 @@ export default function SiteInstitucional({ isRedTheme, onRegisterPartner, onNav
                           value={formData.phone}
                           onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                           placeholder="(11) 99999-8888"
+                          className="vex-body w-full bg-black/30 border border-white/10 py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-white/30 text-white placeholder-white/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="vex-body block text-xs font-medium text-white/40 mb-2">Email de acesso *</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                        <input
+                          type="email"
+                          required
+                          value={formData.email}
+                          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="seuemail@exemplo.com"
+                          className="vex-body w-full bg-black/30 border border-white/10 py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-white/30 text-white placeholder-white/20"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="vex-body block text-xs font-medium text-white/40 mb-2">Senha de acesso *</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                        <input
+                          type="password"
+                          required
+                          value={formData.password}
+                          onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                          placeholder="••••••••"
                           className="vex-body w-full bg-black/30 border border-white/10 py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-white/30 text-white placeholder-white/20"
                         />
                       </div>

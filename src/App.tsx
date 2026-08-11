@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { 
   SERVICES_CATALOG, 
   INITIAL_PARTNERS, 
@@ -14,6 +15,7 @@ import { supabase } from './lib/supabase';
 import SiteInstitucional from './components/SiteInstitucional';
 import AppUnificado from './components/AppUnificado';
 import PainelAdmin from './components/PainelAdmin';
+import AdminGate from './components/AdminGate';
 import ModelagemDados from './components/ModelagemDados';
 
 import { 
@@ -47,7 +49,8 @@ function mapPartnerRow(row: any): Partner {
     lat: row.lat,
     lng: row.lng,
     monthlyFeePaid: row.monthly_fee_paid,
-    fixedPrices: row.fixed_prices || {}
+    fixedPrices: row.fixed_prices || {},
+    userId: row.user_id || undefined
   };
 }
 
@@ -81,6 +84,19 @@ function AppShell() {
     : 'site';
 
   const goToTab = (tab: string) => navigate(tabNameToPath(tab));
+
+  // Quando empacotado como app nativo (Android/iOS via Capacitor), pula direto pro /app —
+  // dentro do celular não faz sentido mostrar o site institucional, admin ou modelagem SQL
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() && location.pathname !== '/app') {
+      navigate('/app', { replace: true });
+    }
+    // Marca o <body> quando roda como app nativo — usado pelo CSS logo abaixo
+    // pra remover a moldura decorativa de "celular dentro do site"
+    if (Capacitor.isNativePlatform()) {
+      document.body.classList.add('vex-native-app');
+    }
+  }, []);
 
   // Paleta fixa em Preto + Dourado — o seletor de tema foi removido
   const isRedTheme = false;
@@ -169,6 +185,26 @@ function AppShell() {
 
   return (
     <div className={`min-h-screen flex flex-col bg-[#0a0a0a] text-white font-sans ${isRedTheme ? 'selection:bg-[#E53E3E]' : 'selection:bg-[#C5A059]'} selection:text-black`}>
+
+      {/* Quando roda como app nativo (Android/iOS), remove a moldura decorativa
+          de "celular" que existe pra facilitar a visualização dentro do site */}
+      <style>{`
+        body.vex-native-app .vex-phone-outer {
+          padding: 0 !important;
+          align-items: stretch !important;
+        }
+        body.vex-native-app .vex-phone-chassis {
+          width: 100% !important;
+          height: 100vh !important;
+          min-height: 100vh !important;
+          border-radius: 0 !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        body.vex-native-app .vex-phone-decor {
+          display: none !important;
+        }
+      `}</style>
       
       {/* Cabeçalho do site — não aparece em /app, que fica isolado como um app de verdade (pronto pra Play Store/App Store) */}
       {currentTab !== 'app' && (
@@ -257,14 +293,16 @@ function AppShell() {
           <Route
             path="/admin"
             element={
-              <PainelAdmin
-                isRedTheme={isRedTheme}
-                partners={partners}
-                setPartners={setPartners}
-                transactions={transactions}
-                setTransactions={setTransactions}
-                activeRequest={activeRequest}
-              />
+              <AdminGate>
+                <PainelAdmin
+                  isRedTheme={isRedTheme}
+                  partners={partners}
+                  setPartners={setPartners}
+                  transactions={transactions}
+                  setTransactions={setTransactions}
+                  activeRequest={activeRequest}
+                />
+              </AdminGate>
             }
           />
 

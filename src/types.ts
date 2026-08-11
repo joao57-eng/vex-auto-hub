@@ -14,6 +14,8 @@ export interface Partner {
   lat: number;
   lng: number;
   monthlyFeePaid: boolean;
+  fixedPrices?: Record<string, { price: number; estimatedTime: string }>; // Preço fixo opcional por serviço
+  userId?: string; // Vincula esse parceiro a uma conta de login (Supabase Auth)
 }
 
 export interface ServiceType {
